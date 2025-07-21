@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Opinion Market - Integration Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        .test-results {
+            margin-top: 20px;
+        }
+        .market-item {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎯 Opinion Market - Integration Test</h1>
+    
+    <div class="container">
+        <h2>System Status</h2>
+        <div id="system-status">
+            <div class="status info">Initializing tests...</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>Backend API Tests</h2>
+        <button onclick="testBackendHealth()">Test Backend Health</button>
+        <button onclick="testBackendMarkets()">Test Markets API</button>
+        <button onclick="createTestMarket()">Create Test Market</button>
+        <div id="backend-results" class="test-results"></div>
+    </div>
+
+    <div class="container">
+        <h2>Positions API Tests</h2>
+        <button onclick="testPositionsAPI()">Test Positions API</button>
+        <button onclick="testPositionsByWallet()">Test Positions by Wallet</button>
+        <button onclick="testPositionsStats()">Test Positions Stats</button>
+        <button onclick="createTestPosition()">Create Test Position</button>
+        <div id="positions-results" class="test-results"></div>
+    </div>
+
+    <div class="container">
+        <h2>Orders API Tests</h2>
+        <button onclick="testOrdersAPI()">Test Orders API</button>
+        <button onclick="testOrdersByUser()">Test Orders by User</button>
+        <button onclick="testOrdersStats()">Test Orders Stats</button>
+        <button onclick="createTestOrder()">Create Test Order</button>
+        <div id="orders-results" class="test-results"></div>
+    </div>
+
+    <div class="container">
+        <h2>Solana Connection Tests</h2>
+        <button onclick="testSolanaConnection()">Test Solana Connection</button>
+        <button onclick="testProgramAccount()">Test Program Account</button>
+        <div id="solana-results" class="test-results"></div>
+    </div>
+
+    <div class="container">
+        <h2>Markets Data</h2>
+        <button onclick="refreshMarkets()">Refresh Markets</button>
+        <div id="markets-list"></div>
+    </div>
+
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+    <script>
+        const BACKEND_URL = 'http://localhost:3001';
+        const PROGRAM_ID = 'Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS';
+        const SOLANA_RPC = 'https://api.devnet.solana.com';
+        
+        let connection;
+        let markets = [];
+
+        // Initialize Solana connection
+        function initializeSolana() {
+            try {
+                connection = new solanaWeb3.Connection(SOLANA_RPC, 'confirmed');
+                addStatus('Solana connection initialized', 'success');
+            } catch (error) {
+                addStatus(`Solana initialization failed: ${error.message}`, 'error');
+            }
+        }
+
+        function addStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('system-status');
+            const statusElement = document.createElement('div');
+            statusElement.className = `status ${type}`;
+            statusElement.innerHTML = `${new Date().toLocaleTimeString()}: ${message}`;
+            statusDiv.appendChild(statusElement);
+        }
+
+        function addResult(containerId, message, type = 'info') {
+            const container = document.getElementById(containerId);
+            const resultElement = document.createElement('div');
+            resultElement.className = `status ${type}`;
+            resultElement.innerHTML = message;
+            container.appendChild(resultElement);
+        }
+
+        async function testBackendHealth() {
+            const container = document.getElementById('backend-results');
+            container.innerHTML = '';
+            
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/health`);
+                if (response.ok) {
+                    const data = await response.json();
+                    addResult('backend-results', `✅ Backend Health: ${response.status} - ${JSON.stringify(data)}`, 'success');
+                } else {
+                    addResult('backend-results', `❌ Backend Health: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                addResult('backend-results', `❌ Backend Health: ${error.message}`, 'error');
+            }
+        }
+
+        async function testBackendMarkets() {
+            const container = document.getElementById('backend-results');
+            
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/markets`);
+                if (response.ok) {
+                    const data = await response.json();
+                    addResult('backend-results', `✅ Markets API: Found ${data.length} markets`, 'success');
+                    markets = data;
+                } else {
+                    addResult('backend-results', `❌ Markets API: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                addResult('backend-results', `❌ Markets API: ${error.message}`, 'error');
+            }
+        }
+
+        async function createTestMarket() {
+            const container = document.getElementById('backend-results');
+            
+            const testMarket = {
+                marketId: `test-${Date.now()}`,
+                question: 'Will this integration test succeed?',
+                options: ['Yes', 'No'],
+                endTime: Math.floor(Date.now() / 1000) + 86400, // 24 hours from now (minimum required)
+                liquidity: 1000000000, // Number, not string (1 SOL in lamports)
+                creator: 'integration-test',
+                programId: PROGRAM_ID,
+                bump: 255 // Default bump value
+            };
+
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/markets`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(testMarket)
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    addResult('backend-results', `✅ Test Market Created: ${data.id || 'Success'}`, 'success');
+                    await testBackendMarkets(); // Refresh markets
+                } else {
+                    const errorText = await response.text();
+                    addResult('backend-results', `❌ Create Market: ${response.status} - ${errorText}`, 'error');
+                }
+            } catch (error) {
+                addResult('backend-results', `❌ Create Market: ${error.message}`, 'error');
+            }
+        }
+
+        async function testSolanaConnection() {
+            const container = document.getElementById('solana-results');
+            container.innerHTML = '';
+            
+            try {
+                const version = await connection.getVersion();
+                addResult('solana-results', `✅ Solana Connection: ${JSON.stringify(version)}`, 'success');
+                
+                const slot = await connection.getSlot();
+                addResult('solana-results', `✅ Current Slot: ${slot}`, 'success');
+            } catch (error) {
+                addResult('solana-results', `❌ Solana Connection: ${error.message}`, 'error');
+            }
+        }
+
+        async function testProgramAccount() {
+            const container = document.getElementById('solana-results');
+            
+            try {
+                const programPubkey = new solanaWeb3.PublicKey(PROGRAM_ID);
+                const accountInfo = await connection.getAccountInfo(programPubkey);
+                
+                if (accountInfo) {
+                    addResult('solana-results', `✅ Program Account Found: ${accountInfo.lamports} lamports, ${accountInfo.data.length} bytes`, 'success');
+                    addResult('solana-results', `Program Owner: ${accountInfo.owner.toString()}`, 'info');
+                    addResult('solana-results', `Executable: ${accountInfo.executable}`, 'info');
+                } else {
+                    addResult('solana-results', `❌ Program Account Not Found: ${PROGRAM_ID}`, 'error');
+                }
+            } catch (error) {
+                addResult('solana-results', `❌ Program Account Test: ${error.message}`, 'error');
+            }
+        }
+
+        async function refreshMarkets() {
+            const container = document.getElementById('markets-list');
+            container.innerHTML = '<div class="status info">Loading markets...</div>';
+            
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/markets`);
+                if (response.ok) {
+                    const data = await response.json();
+                    markets = data;
+                    
+                    if (markets.length === 0) {
+                        container.innerHTML = '<div class="status warning">No markets found. Create one to get started!</div>';
+                    } else {
+                        container.innerHTML = `<h3>Found ${markets.length} markets:</h3>`;
+                        markets.forEach(market => {
+                            const marketDiv = document.createElement('div');
+                            marketDiv.className = 'market-item';
+                            marketDiv.innerHTML = `
+                                <h4>${market.question}</h4>
+                                <p><strong>ID:</strong> ${market.marketId || market.id}</p>
+                                <p><strong>Options:</strong> ${market.options ? market.options.join(', ') : 'N/A'}</p>
+                                <p><strong>Status:</strong> ${market.isActive ? 'Active' : 'Closed'}</p>
+                                <p><strong>Creator:</strong> ${market.creator}</p>
+                                <p><strong>Created:</strong> ${market.createdAt || 'N/A'}</p>
+                                <details>
+                                    <summary>Raw Data</summary>
+                                    <pre>${JSON.stringify(market, null, 2)}</pre>
+                                </details>
+                            `;
+                            container.appendChild(marketDiv);
+                        });
+                    }
+                } else {
+                    container.innerHTML = `<div class="status error">Failed to load markets: ${response.status} ${response.statusText}</div>`;
+                }
+            } catch (error) {
+                container.innerHTML = `<div class="status error">Failed to load markets: ${error.message}</div>`;
+            }
+        }
+
+        // Positions API Tests
+        async function testPositionsAPI() {
+            try {
+                addResult('positions-results', 'Testing Positions API...', 'info');
+                const response = await fetch(`${BACKEND_URL}/api/positions`);
+                const positions = await response.json();
+                
+                if (response.ok) {
+                    addResult('positions-results', `✅ Positions API: Found ${positions.length} positions`, 'success');
+                    addResult('positions-results', `<pre>${JSON.stringify(positions, null, 2)}</pre>`, 'info');
+                } else {
+                    addResult('positions-results', `❌ Positions API failed: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                addResult('positions-results', `❌ Positions API error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testPositionsByWallet() {
+            try {
+                const walletAddress = '11111111111111111111111111111112';
+                addResult('positions-results', `Testing positions for wallet: ${walletAddress}`, 'info');
+                
+                const response = await fetch(`${BACKEND_URL}/api/positions/wallet/${walletAddress}`);
+                const positions = await response.json();
+                
+                if (response.ok) {
+                    addResult('positions-results', `✅ Wallet Positions: Found ${positions.length} positions`, 'success');
+                    addResult('positions-results', `<pre>${JSON.stringify(positions, null, 2)}</pre>`, 'info');
+                } else {
+                    addResult('positions-results', `❌ Wallet Positions failed: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                addResult('positions-results', `❌ Wallet Positions error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testPositionsStats() {
+            try {
+                addResult('positions-results', 'Testing Positions Statistics...', 'info');
+                const response = await fetch(`${BACKEND_URL}/api/positions/stats/summary`);
+                const stats = await response.json();
+                
+                if (response.ok) {
+                    addResult('positions-results', '✅ Positions Stats retrieved successfully', 'success');
+                    addResult('positions-results', `<pre>${JSON.stringify(stats, null, 2)}</pre>`, 'info');
+                } else {
+                    addResult('positions-results', `❌ Positions Stats failed: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                addResult('positions-results', `❌ Positions Stats error: ${error.message}`, 'error');
+            }
+        }
+
+        async function createTestPosition() {
+            try {
+                const testPosition = {
+                    marketId: 'test-market-' + Date.now(),
+                    user: '33333333333333333333333333333334',
+                    shares: ['500000000', '0'],
+                    totalCost: '225000000',
+                    totalFeesPaid: '4500000',
+                    programId: PROGRAM_ID,
+                    bump: 252
+                };
+                
+                addResult('positions-results', 'Creating test position...', 'info');
+                const response = await fetch(`${BACKEND_URL}/api/positions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(testPosition)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    addResult('positions-results', '✅ Test position created successfully', 'success');
+                    addResult('positions-results', `<pre>${JSON.stringify(result, null, 2)}</pre>`, 'info');
+                } else {
+                    addResult('positions-results', `❌ Create position failed: ${response.status}`, 'error');
+                    addResult('positions-results', `<pre>${JSON.stringify(result, null, 2)}</pre>`, 'error');
+                }
+            } catch (error) {
+                addResult('positions-results', `❌ Create position error: ${error.message}`, 'error');
+            }
+        }
+
+        // Orders API Tests
+        async function testOrdersAPI() {
+            try {
+                addResult('orders-results', 'Testing Orders API...', 'info');
+                const response = await fetch(`${BACKEND_URL}/api/orders`);
+                const orders = await response.json();
+                
+                if (response.ok) {
+                    addResult('orders-results', `✅ Orders API: Found ${orders.length} orders`, 'success');
+                    addResult('orders-results', `<pre>${JSON.stringify(orders, null, 2)}</pre>`, 'info');
+                } else {
+                    addResult('orders-results', `❌ Orders API failed: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                addResult('orders-results', `❌ Orders API error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testOrdersByUser() {
+            try {
+                const userAddress = '11111111111111111111111111111112';
+                addResult('orders-results', `Testing orders for user: ${userAddress}`, 'info');
+                
+                const response = await fetch(`${BACKEND_URL}/api/orders/user/${userAddress}`);
+                const orders = await response.json();
+                
+                if (response.ok) {
+                    addResult('orders-results', `✅ User Orders: Found ${orders.length} orders`, 'success');
+                    addResult('orders-results', `<pre>${JSON.stringify(orders, null, 2)}</pre>`, 'info');
+                } else {
+                    addResult('orders-results', `❌ User Orders failed: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                addResult('orders-results', `❌ User Orders error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testOrdersStats() {
+            try {
+                addResult('orders-results', 'Testing Orders Statistics...', 'info');
+                const response = await fetch(`${BACKEND_URL}/api/orders/stats/summary`);
+                const stats = await response.json();
+                
+                if (response.ok) {
+                    addResult('orders-results', '✅ Orders Stats retrieved successfully', 'success');
+                    addResult('orders-results', `<pre>${JSON.stringify(stats, null, 2)}</pre>`, 'info');
+                } else {
+                    addResult('orders-results', `❌ Orders Stats failed: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                addResult('orders-results', `❌ Orders Stats error: ${error.message}`, 'error');
+            }
+        }
+
+        async function createTestOrder() {
+            try {
+                const testOrder = {
+                    marketId: 'test-market-' + Date.now(),
+                    user: '44444444444444444444444444444445',
+                    type: 'buy',
+                    optionIndex: 0,
+                    amount: '300000000',
+                    expectedAmount: '666666666',
+                    fees: '6000000',
+                    status: 'pending',
+                    programId: PROGRAM_ID
+                };
+                
+                addResult('orders-results', 'Creating test order...', 'info');
+                const response = await fetch(`${BACKEND_URL}/api/orders`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(testOrder)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    addResult('orders-results', '✅ Test order created successfully', 'success');
+                    addResult('orders-results', `<pre>${JSON.stringify(result, null, 2)}</pre>`, 'info');
+                } else {
+                    addResult('orders-results', `❌ Create order failed: ${response.status}`, 'error');
+                    addResult('orders-results', `<pre>${JSON.stringify(result, null, 2)}</pre>`, 'error');
+                }
+            } catch (error) {
+                addResult('orders-results', `❌ Create order error: ${error.message}`, 'error');
+            }
+        }
+
+        // Initialize on page load
+        window.onload = function() {
+            initializeSolana();
+            addStatus('System initialized. Ready for testing.', 'success');
+            
+            // Auto-run basic tests
+            setTimeout(() => {
+                testBackendHealth();
+                testSolanaConnection();
+                refreshMarkets();
+            }, 1000);
+        };
+    </script>
+</body>
+</html>

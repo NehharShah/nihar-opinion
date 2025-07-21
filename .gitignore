@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Rust/Anchor
+target/
+Cargo.lock
+.anchor/
+test-ledger/
+
+# Environment variables
+.env
+.env.local
+
+# Database
+*.db
+backend/data/
+backend/logs/
+
+# Logs
+*.log
+
+# Build outputs
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Solana
+deploy/
+idl/
+types/
+new-program-keypair.json 
